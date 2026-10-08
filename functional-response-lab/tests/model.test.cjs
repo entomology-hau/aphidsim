@@ -12,3 +12,33 @@ test('zero handling, prey depletion, replacement and boundary completion',()=>{c
 test('Rogers solution satisfies equation and obeys prey/time bounds',()=>{for(const n of [1,5,80,120])for(const h of [0,.2,1,10])for(const a of [.001,.12,5]){const x=M.typeII(n,a,h,20,'depletion');assert.ok(x>=0&&x<=n+1e-8);if(h>0)assert.ok(x<=20/h+1e-8);assert.ok(Math.abs(x-n*(1-Math.exp(-a*(20-h*x))))<1e-7);assert.ok(x<=M.typeII(n,a,h,20,'replacement')+1e-7);}});
 test('Holling reference, sample SD, SE and single observations are correct',()=>{assert.equal(M.typeII(10,.1,1,20,'replacement'),10);const s=M.summary([{density:10,eaten:2},{density:10,eaten:4},{density:5,eaten:1}]);assert.equal(s[0].se,null);assert.equal(s[1].mean,3);assert.ok(Math.abs(s[1].sd-Math.SQRT2)<1e-12);assert.equal(s[1].se,1);});
 test('CSV preserves rows, quotes labels and neutralises spreadsheet formulas',()=>{const csv=M.csv([{label:'=1+1',value:2},{label:'a,"b"',value:null}]);assert.ok(csv.includes("'=1+1,2"));assert.ok(csv.includes('"a,""b""",'));assert.ok(csv.startsWith('\uFEFF'));});
+test('response presets and validation keep the mechanisms consistent',()=>{
+  assert.equal(M.presets.type1.handling,0);assert.equal(M.presets.type2.handling,1);assert.equal(M.presets.type3.handling,1);
+  assert.equal(M.validate({...base,handling:0}).response,'type1');
+  for(const c of [{response:'type1',handling:1},{response:'type2',handling:0},{response:'type3',captureK:0},{response:'type3',captureK:20.5}])assert.throws(()=>M.validate({...base,...c}));
+});
+test('Type III capture failures do not consume prey or initiate handling; chance follows depletion',()=>{
+  const c={...base,response:'type3',captureK:20};
+  assert.equal(M.captureChance(c,5),.2);assert.equal(M.captureChance(c,20),.5);assert.equal(M.captureChance(c,80),.8);
+  const draws=[.9,.1,.49],e=new M.TrialEngine(c,20,()=>draws.shift());
+  assert.equal(e.capture(1,0),false);assert.equal(e.pending,null);assert.equal(e.eaten,0);assert.equal(e.failedAttacks,1);
+  assert.equal(e.capture(1,.2),true);assert.equal(e.capture(2,.3),false);assert.equal(e.attacks,2);
+  e.advance(1.2);assert.equal(e.remaining,19);assert.equal(e.capture(2,1.3),false);assert.equal(e.failedAttacks,2);
+  assert.equal(e.attempts.length,3);assert.equal(e.attempts[2].probability,19/39);
+  const a=new M.TrialEngine(c,20,M.rng(4)),b=new M.TrialEngine(c,20,M.rng(4));for(let i=0;i<10;i++){a.capture(i,i*2);b.capture(i,i*2);}assert.deepEqual(a.attempts,b.attempts);
+});
+test('reference curves use each preset and Type III integrates changing density',()=>{
+  const c={...base,response:'type3',captureK:20};
+  for(const n of [1,5,20,80,120])for(const a of [.001,.12,5])for(const h of [.1,1,10]){
+    const config={...c,handling:h},x=M.prediction(n,a,config),left=n-x;
+    assert.ok(x>=0&&x<n&&x<=20/h+1e-8);
+    const elapsed=(-Math.log1p(-x/n)+20*x/(n*left))/a+h*x;
+    assert.ok(Math.abs(elapsed-20)<1e-7);
+    assert.ok(x<=M.prediction(n,a,{...config,replacement:'replacement'})+1e-8);
+  }
+  assert.equal(M.prediction(10,.1,{...base,response:'type1',handling:0,replacement:'replacement'}),20);
+  assert.equal(M.prediction(10,.1,{...base,response:'type2',replacement:'replacement'}),10);
+  assert.equal(M.prediction(20,.1,{...c,replacement:'replacement'}),10);
+  const y=n=>M.prediction(n,.12,{...c,replacement:'replacement'});
+  assert.ok(y(2)-y(1)>y(1)-y(0));assert.ok(y(80)-y(79)<y(40)-y(39));
+});

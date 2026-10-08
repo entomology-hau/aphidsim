@@ -10,6 +10,13 @@
     ladybird:{common:'Seven-spot ladybird larva',scientific:'Coccinella septempunctata',stage:'4th instar'},
     lacewing:{common:'Green lacewing larva',scientific:'Chrysoperla carnea group',stage:'3rd instar'}
   };
+  const presets = {
+    type1:{label:'Type I',handling:0,captureK:20},
+    type2:{label:'Type II',handling:1,captureK:20},
+    type3:{label:'Type III',handling:1,captureK:20}
+  };
+  const responseType=c=>c.response||(c.handling===0?'type1':'type2');
+  function captureChance(c,n){return responseType(c)==='type3'?Math.max(0,n)/(Math.max(0,n)+c.captureK):1;}
   function rng(seed) { let a=seed>>>0; return () => {a+=0x6D2B79F5;let t=a;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return ((t^(t>>>14))>>>0)/4294967296;}; }
   function shuffle(a,random){const b=[...a];for(let i=b.length-1;i>0;i--){const j=Math.floor(random()*(i+1));[b[i],b[j]]=[b[j],b[i]];}return b;}
   function validate(raw){
@@ -21,8 +28,13 @@
     if(!Number.isInteger(duration)||duration<5||duration>120) throw new Error('Trial length must be a whole number from 5 to 120 seconds.');
     if(!Number.isFinite(handling)||String(raw.handling).trim()===''||handling<0||handling>10) throw new Error('Handling time must be from 0 to 10 seconds.');
     if(!Number.isInteger(replicates)||replicates<2||replicates>6) throw new Error('Choose 2–6 replicates per density.');
+    const response=raw.response||(handling===0?'type1':'type2'),captureK=Number(raw.captureK??20);
+    if(!presets[response])throw new Error('Choose a functional response preset.');
+    if(response==='type1'&&handling!==0)throw new Error('Type I uses zero handling time. Choose Type II or III to add handling.');
+    if(response!=='type1'&&handling<0.1)throw new Error('Type II and III use a handling time of at least 0.1 s. Choose Type I for no delay.');
+    if(!Number.isInteger(captureK)||captureK<1||captureK>120)throw new Error('Half-success density must be a whole number from 1 to 120.');
     if(!species[raw.prey]||!predators[raw.predator]||!['depletion','replacement'].includes(raw.replacement)||!['random','clustered'].includes(raw.distribution)||!['plain','veined'].includes(raw.background)||!['standard','large'].includes(raw.target)) throw new Error('Choose valid experimental conditions.');
-    return {...raw,densities:values.sort((a,b)=>a-b),duration,handling:Math.round(handling*10)/10,replicates,group:String(raw.group||'').trim().slice(0,30)};
+    return {...raw,response,captureK,densities:values.sort((a,b)=>a-b),duration,handling:Math.round(handling*10)/10,replicates,group:String(raw.group||'').trim().slice(0,30)};
   }
   function schedule(config,seed){const random=rng(seed);const rows=[];for(let rep=1;rep<=config.replicates;rep++)for(const density of shuffle(config.densities,random))rows.push({density,replicate:rep,order:rows.length+1});return rows;}
   function layout(seed,target,distribution){
@@ -45,13 +57,29 @@
     for(let i=0;i<70;i++){const m=(lo+hi)/2;const f=m-n*(-Math.expm1(-a*(t-h*m)));if(f>0)hi=m;else lo=m;}
     return (lo+hi)/2;
   }
+  // Type III uses a(N) = a N/(N+K), matching the game's density-dependent
+  // capture chance. Integrate depletion as N changes; do not freeze a at N0.
+  function prediction(n,a,c){
+    const type=responseType(c),h=type==='type1'?0:c.handling,t=c.duration;
+    if(type!=='type3')return typeII(n,a,h,t,c.replacement);
+    if(n<=0||a<=0||t<=0)return 0;
+    const k=c.captureK;
+    if(c.replacement==='replacement'){const effective=a*n/(n+k);return effective*n*t/(1+effective*h*n);}
+    let lo=0,hi=Math.min(n,h>0?t/h:n);
+    for(let i=0;i<70;i++){
+      const eaten=(lo+hi)/2,left=n-eaten;
+      const required=left<=0?Infinity:(-Math.log1p(-eaten/n)+k*eaten/(n*left))/a+h*eaten;
+      if(required>t)hi=eaten;else lo=eaten;
+    }
+    return (lo+hi)/2;
+  }
   function summary(trials,metric='eaten'){
     const groups=new Map();for(const r of trials){if(!groups.has(r.density))groups.set(r.density,[]);groups.get(r.density).push(metric==='rate'?r.eaten/r.duration:metric==='proportion'?r.eaten/r.density:r.eaten);}
     return [...groups].sort((a,b)=>a[0]-b[0]).map(([density,values])=>{const n=values.length,mean=values.reduce((s,x)=>s+x,0)/n;const sd=n>1?Math.sqrt(values.reduce((s,x)=>s+(x-mean)**2,0)/(n-1)):null;return{density,n,mean,sd,se:sd===null?null:sd/Math.sqrt(n)};});
   }
   // Counts only prey whose handling has finished by the fixed trial deadline.
   class TrialEngine{
-    constructor(config,density){this.config=config;this.density=density;this.eaten=0;this.remaining=density;this.attacks=0;this.misses=0;this.pending=null;this.elapsed=0;this.finished=false;this.handlingSpent=0;this.events=[];}
+    constructor(config,density,random=Math.random){this.config=config;this.random=random;this.density=density;this.eaten=0;this.remaining=density;this.attacks=0;this.failedAttacks=0;this.misses=0;this.pending=null;this.elapsed=0;this.finished=false;this.handlingSpent=0;this.events=[];this.attempts=[];}
     advance(elapsed){
       this.elapsed=Math.min(this.config.duration,Math.max(this.elapsed,elapsed));
       if(this.pending&&this.pending.end<=this.elapsed+1e-9&&this.pending.end<=this.config.duration+1e-9){
@@ -63,12 +91,15 @@
     }
     capture(target,elapsed){
       this.advance(elapsed);if(this.finished||this.pending||this.remaining<=0)return false;
-      this.attacks++;this.pending={target,start:this.elapsed,end:this.elapsed+this.config.handling};this.advance(this.elapsed);return true;
+      this.attacks++;const probability=captureChance(this.config,this.remaining),success=probability===1||this.random()<probability;
+      this.attempts.push({target,time:this.elapsed,prey:this.remaining,probability,success});
+      if(!success){this.failedAttacks++;return false;}
+      this.pending={target,start:this.elapsed,end:this.elapsed+this.config.handling};this.advance(this.elapsed);return true;
     }
-    result(){const partial=this.pending?Math.max(0,Math.min(this.config.duration-this.pending.start,this.config.handling)):0;return{eaten:this.eaten,attacks:this.attacks,misses:this.misses,unfinished:this.pending?1:0,handlingSpent:this.handlingSpent+partial,searchTime:Math.max(0,this.config.duration-this.handlingSpent-partial)};}
+    result(){const partial=this.pending?Math.max(0,Math.min(this.config.duration-this.pending.start,this.config.handling)):0;return{eaten:this.eaten,attacks:this.attacks,failedAttacks:this.failedAttacks,misses:this.misses,unfinished:this.pending?1:0,handlingSpent:this.handlingSpent+partial,searchTime:Math.max(0,this.config.duration-this.handlingSpent-partial)};}
   }
   function csvCell(value){const s=value===null||value===undefined?'':String(value);const safe=/^[\s]*[=+@-]/.test(s)&&typeof value!=='number'?"'"+s:s;return /[",\r\n]/.test(safe)?'"'+safe.replace(/"/g,'""')+'"':safe;}
   function csv(rows){if(!rows.length)return '';const keys=Object.keys(rows[0]);return '\uFEFF'+[keys.map(csvCell).join(','),...rows.map(r=>keys.map(k=>csvCell(r[k])).join(','))].join('\r\n');}
-  const api={species,predators,rng,shuffle,validate,schedule,layout,typeII,summary,TrialEngine,csv};
+  const api={species,predators,presets,responseType,captureChance,rng,shuffle,validate,schedule,layout,typeII,prediction,summary,TrialEngine,csv};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.FunctionalLab=api;
 })(typeof window!=='undefined'?window:globalThis);
