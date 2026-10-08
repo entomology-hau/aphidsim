@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="An ethical, interactive functional response practical. Search for aphids, explore handling time and prey density, and collect replicate data.">
+  <title>Functional Response Lab | HAU Entomology</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b2c48'/%3E%3Cpath d='M7 7v18h19M9 22Q13 10 26 10' fill='none' stroke='%239cda72' stroke-width='3'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="styles.css">
+  <script src="model.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to practical</a>
+<header class="site-header">
+  <a class="brand" href="./" aria-label="Functional Response Lab home"><span class="brand-mark">HAU</span><span>ENTOMOLOGY<span class="brand-sub">Harper Adams University</span></span></a>
+  <nav aria-label="Main navigation">
+    <button class="nav-button active" data-view="practical" aria-current="page">Practical</button>
+    <button class="nav-button" data-view="results">Results <span id="result-count" class="count">0</span></button>
+    <button class="nav-button" data-view="science">Science &amp; teaching</button>
+  </nav>
+</header>
+<main id="main">
+  <section id="view-practical" class="view">
+    <div class="page-heading"><div><p class="eyebrow">VIRTUAL BIOLOGICAL CONTROL PRACTICAL</p><h1>Functional Response Lab</h1><p>Become the predator. Discover how prey density changes feeding rate.</p></div><span class="ethical-label">No live insects required</span></div>
+    <div id="storage-warning" class="notice hidden" role="status">This browser cannot save your work. Export your results before closing this page.</div>
+    <div class="lab-layout">
+      <aside class="setup panel" aria-labelledby="setup-title">
+        <div class="panel-title"><h2 id="setup-title">Set up your experiment</h2><span class="step-number">01</span></div>
+        <form id="setup-form">
+          <fieldset id="conditions"><legend class="sr-only">Experimental conditions</legend>
+            <label for="prey">Aphid species</label>
+            <select id="prey" name="prey"><option value="persicae">Peach–potato aphid</option><option value="fabae">Black bean aphid</option><option value="pisum">Pea aphid</option></select>
+            <p id="prey-note" class="field-note"><i>Myzus persicae</i> · potatoes &amp; brassicas</p>
+            <label for="predator">Natural enemy</label>
+            <select id="predator" name="predator"><option value="ladybird">Seven-spot ladybird larva</option><option value="lacewing">Green lacewing larva</option></select>
+            <p id="predator-note" class="field-note"><i>Coccinella septempunctata</i> · 4th instar</p>
+            <div class="field-pair"><div><label for="duration">Trial length <span>(s)</span></label><input id="duration" name="duration" type="number" min="5" max="120" step="1" value="20" required></div><div><label for="handling">Handling time <span>(s)</span></label><input id="handling" name="handling" type="number" min="0" max="10" step="0.1" value="1" required></div></div>
+            <p class="field-note">Game seconds, not measured insect timings. Both predators start at 1 s per aphid.</p>
+            <label for="densities">Prey densities <span>(aphids per arena)</span></label><input id="densities" name="densities" value="5, 10, 20, 40, 80" required aria-describedby="density-help"><p id="density-help" class="field-note">Enter 2–8 different counts, from 1 to 120.</p>
+            <div class="field-pair"><div><label for="replicates">Replicates per density</label><select id="replicates" name="replicates"><option value="2">2</option><option value="3" selected>3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option></select></div><div><label for="group">Group code <span>(optional)</span></label><input id="group" name="group" maxlength="30" placeholder="e.g. Bench 4" autocomplete="off"></div></div>
+            <details class="advanced"><summary>More conditions</summary>
+              <label for="replacement">After an aphid is consumed</label><select id="replacement" name="replacement"><option value="depletion">Remove it · prey depletion</option><option value="replacement">Replace it · constant density</option></select>
+              <label for="distribution">Prey distribution</label><select id="distribution" name="distribution"><option value="random">Scattered</option><option value="clustered">Clustered</option></select>
+              <label for="background">Leaf background</label><select id="background" name="background"><option value="plain">Subtle veins</option><option value="veined">Prominent veins</option></select>
+              <label for="target">Target size</label><select id="target" name="target"><option value="standard">Standard</option><option value="large">Large · easier pointing</option></select>
+              <p class="field-note">Keep the same device, zoom and settings within an experiment. Larger targets change the task and are recorded separately.</p>
+            </details>
+          </fieldset>
+          <p id="form-error" class="form-error" role="alert"></p>
+          <div id="design-summary" class="design-summary">5 densities × 3 replicates · 5 min of trials</div>
+          <button id="create-experiment" class="primary wide" type="submit">Create experiment</button>
+        </form>
+      </aside>
+      <div class="experiment-column">
+        <section class="arena-panel panel" aria-labelledby="arena-title">
+          <div class="arena-heading"><div><p class="eyebrow">SEARCH ARENA</p><h2 id="arena-title">A leaf. A predator. A time limit.</h2></div><span id="trial-badge" class="badge">Ready to explore</span></div>
+          <div class="hud"><div><span>Time remaining</span><strong id="time-display">20.0<span>s</span></strong></div><div><span>Consumed</span><strong id="eaten-display">0</strong></div><div><span>On the leaf</span><strong id="remaining-display">—</strong></div><div class="hud-state"><span>Predator activity</span><strong id="activity-display">Ready</strong></div></div>
+          <div id="arena" class="arena plain" aria-label="Aphid search arena">
+            <div id="prey-layer" class="prey-layer" aria-hidden="true"></div>
+            <div id="arena-cover" class="arena-cover">
+              <div id="cover-content"><span class="cover-kicker">SEARCH · CAPTURE · HANDLE</span><h3>How many can you find?</h3><p>Click an aphid to capture it. Wait while you handle it, then search again. Only fully handled prey count as consumed.</p><button id="practice" class="light-button">Try a 10-second practice</button><p class="cover-small">Practice is not added to your dataset.</p></div>
+            </div>
+            <div id="handling-cover" class="handling-cover hidden"><span class="cover-kicker">SEARCHING IS PAUSED</span><h3>Handling prey</h3><strong id="handling-countdown">1.0 s</strong><div class="handling-track"><span id="handling-progress"></span></div><p>You can search again once handling is complete.</p></div>
+          </div>
+          <div class="arena-footer"><p id="trial-instruction">Create an experiment, or try a practice first.</p><button id="abort-trial" class="quiet danger hidden" type="button">Discard this attempt</button></div>
+        </section>
+        <section class="schedule-panel panel" aria-labelledby="schedule-title"><div class="panel-title"><h2 id="schedule-title">Your trial sequence</h2><span id="schedule-progress" class="small-muted">No experiment yet</span></div><div id="schedule" class="schedule"><p class="empty-inline">Each replicate block includes every density, in a random order.</p></div><div class="schedule-footer"><p id="current-conditions" class="small-muted">One student acts as one predator. Rest between trials.</p><button class="text-button" data-view="results">View results</button></div></section>
+        <div class="lab-tip"><span class="tip-index">LAB NOTE</span><p><strong>A functional response is a relationship, not a score.</strong> Repeat each density and look for a pattern. Human searching, practice and tiredness all contribute to variation.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="view-results" class="view hidden" aria-labelledby="results-title">
+    <div class="page-heading"><div><p class="eyebrow">FROM TRIALS TO EVIDENCE</p><h1 id="results-title">Your functional response</h1><p>Explore individual trials and the mean response at each density.</p></div><div class="button-row"><button id="export-csv" class="primary" disabled>Download trial CSV</button><button id="export-summary" class="secondary" disabled>Download summary CSV</button></div></div>
+    <div id="results-empty" class="empty-state panel"><h2>Your experiment starts on the leaf.</h2><p>Complete a recorded trial to see your data here. Practice trials are excluded.</p><button class="primary" data-view="practical">Go to practical</button></div>
+    <div id="results-content" class="hidden">
+      <div class="results-toolbar panel"><div><label for="experiment-select">Experiment</label><select id="experiment-select"></select></div><div><label for="metric">Response variable</label><select id="metric"><option value="eaten">Number consumed</option><option value="rate">Consumption rate (aphids/s)</option><option value="proportion">Proportion of initial prey consumed</option></select></div><button id="export-graph" class="secondary">Download graph SVG</button></div>
+      <p id="result-conditions" class="condition-line"></p>
+      <div class="results-layout"><section class="panel chart-panel"><div class="panel-title"><h2 id="chart-title">Prey density and consumption</h2><span class="small-muted">Points = trials · line = means · bars = ±1 SE</span></div><div id="chart" class="chart"></div><p id="chart-note" class="field-note"></p></section><aside class="panel interpretation"><p class="eyebrow">READ YOUR GRAPH</p><h2 id="complete-trials">0 recorded trials</h2><p id="result-observation"></p><hr><label class="checkbox-label"><input id="show-model" type="checkbox">Show a theoretical type II curve</label><label for="attack-rate">Search coefficient <i>a</i> <span>(arena/s)</span></label><input id="attack-rate" type="number" min="0.001" max="5" step="0.001" value="0.12"><p id="model-description" class="field-note"></p><p class="field-note">This adjustable curve is not a fitted model and does not classify your data.</p><hr><p class="field-note">Replicates by one person are repeated technical trials, not independent predators. Use multiple students or groups for wider comparisons.</p></aside></div>
+      <section class="panel data-panel"><div class="panel-title"><h2>Recorded trials</h2><span class="small-muted">All exports include conditions, trial order and group code.</span></div><div class="table-scroll"><table><thead><tr><th scope="col">Trial</th><th scope="col">Replicate</th><th scope="col">Initial prey</th><th scope="col">Consumed</th><th scope="col">Rate / s</th><th scope="col">Handling / s</th><th scope="col">Unfinished capture</th></tr></thead><tbody id="trial-table"></tbody></table></div></section>
+    </div>
+    <p class="local-note">Results stay in this browser on this device. Download before leaving a shared computer. Exports include all recorded experiments.</p><button id="clear-data" class="quiet danger">Clear saved experiments on this device</button>
+  </section>
+
+  <section id="view-science" class="view hidden" aria-labelledby="science-title">
+    <div class="page-heading"><div><p class="eyebrow">THE SCIENCE BEHIND THE PRACTICAL</p><h1 id="science-title">Search time, handling time, evidence.</h1><p>A humane way to investigate predation and experimental design.</p></div></div>
+    <div class="science-grid">
+      <article class="panel prose"><h2>What are we measuring?</h2><p>A functional response describes how consumption by one predator changes with prey density over a defined period. Here, your visual search and clicks supply the searching behaviour; a fixed delay represents handling.</p><p>Holling’s classic experiments included artificial predator–prey tasks. This activity follows that teaching principle: the response emerges from your actions, rather than from an imposed curve.</p><div class="equation"><span>Holling type II · constant prey density</span><strong>N<sub>e</sub> = a N T / (1 + a h N)</strong></div><p><i>N<sub>e</sub></i> = expected number consumed; <i>N</i> = prey per arena; <i>T</i> = trial seconds; <i>a</i> = search coefficient (arena/s); <i>h</i> = handling seconds per prey. The theoretical high-density limit is <i>T/h</i> when <i>h &gt; 0</i>.</p><p>Type I is approximately linear before saturation; type II rises with a diminishing slope; type III is sigmoid. A shape alone is not a statistical diagnosis. This game does not force a particular response type.</p><h3>Why does prey replacement matter?</h3><p>In removal trials, prey become less abundant as you feed. Rogers’ random-predator equation accounts for this depletion:</p><div class="equation"><span>Type II · prey not replaced</span><strong>N<sub>e</sub> = N<sub>0</sub> [1 − exp{−a(T − h N<sub>e</sub>)}]</strong></div><p>The results panel solves this equation for its theoretical overlay in removal mode. Replacement mode uses Holling’s equation. Keep these designs separate when analysing the data.</p></article>
+      <article class="panel prose"><h2>Run a computer-lab practical</h2><ol class="teaching-steps"><li><strong>Predict.</strong> Sketch consumption against prey density. What should a longer handling time change?</li><li><strong>Practise.</strong> Use the unrecorded 10-second trial to get used to searching and pointing.</li><li><strong>Collect.</strong> The default is five densities, three replicate blocks and 20 seconds per trial: five minutes of active searching and handling.</li><li><strong>Compare.</strong> Create a second experiment with one changed condition, such as 2 s handling. Use the same observer, device, zoom, target size and other settings.</li><li><strong>Analyse.</strong> Plot raw trials, means and variability. Export to R, jamovi or a spreadsheet for further analysis.</li><li><strong>Evaluate.</strong> Discuss depletion, learning, fatigue, visibility and why a click experiment cannot establish which natural enemy controls a crop pest best.</li></ol><h3>A fair and accessible comparison</h3><p>Use anonymous group codes. Students can share searching, recording and interpretation roles. Touch and large-target trials are supported, but their results should not be pooled uncritically with mouse trials. For students unable to use a visual pointing task, analyse a partner’s exported observations.</p><p>Trial order is randomised within each replicate block. Aphid positions change each time and targets do not overlap. The arena is covered while handling, preventing a head start on the next search. Switching tabs or resizing the arena discards the unfinished attempt.</p></article>
+      <article class="panel prose"><h2>Species and model boundaries</h2><p>Choose three UK crop pests: peach–potato aphid (<i>Myzus persicae</i>), black bean aphid (<i>Aphis fabae</i>) and pea aphid (<i>Acyrthosiphon pisum</i>). The natural-enemy scenarios are a fourth-instar seven-spot ladybird (<i>Coccinella septempunctata</i>) or a third-instar green lacewing (<i>Chrysoperla carnea</i> group).</p><p>Species choices provide biological context. Both predators begin with the same 1 s teaching handling time. Aphid icons have the same target size; colour and visibility can still change human search performance. Images are schematic and are not identification guides.</p><p>Published estimates depend on prey and predator stage, temperature, arena and experimental method. Kayahan (2021), for example, reports third-instar lacewing handling estimates of 23.62 min for <i>A. fabae</i> and 21.89 min for <i>A. pisum</i>. Those are estimates from that study, not universal species constants or settings used here.</p><p>No temperature response, hunger, prey escape, digestion, predator movement or chemical cues are simulated. Changing the predator label alone does not change capture mechanics. Use the handling control to test an explicitly stated hypothesis.</p><h3>Replacement, reduction and reflection</h3><p>This activity replaces live predation for learning about functional responses. It provides repeated practice without maintaining or killing live insects. It does not reproduce every skill or observation available from a live-animal practical. Discuss what is gained, what is lost, and which learning outcomes require another approach.</p></article>
+      <article class="panel prose references"><h2>Key papers &amp; further reading</h2><p>Primary research underpins the ecological model; the game settings are deliberately simplified.</p>
+        <div class="reference"><span>01 · FOUNDATIONS</span><a href="https://doi.org/10.4039/Ent91385-7" target="_blank" rel="noopener">Holling, C. S. (1959). Some characteristics of simple types of predation and parasitism.</a><p><i>The Canadian Entomologist</i>, 91, 385–398. Searching, handling and artificial predator–prey experiments.</p></div>
+        <div class="reference"><span>02 · PREY DEPLETION</span><a href="https://doi.org/10.2307/3474" target="_blank" rel="noopener">Rogers, D. (1972). Random search and insect population models.</a><p><i>Journal of Animal Ecology</i>, 41, 369–383. A basis for analysing trials without prey replacement.</p></div>
+        <div class="reference"><span>03 · LACEWINGS &amp; APHIDS</span><a href="https://dergipark.org.tr/en/pub/jaefs/article/976648" target="_blank" rel="noopener">Kayahan, A. (2021). Functional response of <i>Chrysoperla carnea</i> on two different aphid species (<i>Aphis fabae</i> and <i>Acyrthosiphon pisum</i>).</a><p><i>International Journal of Agriculture, Environment and Food Sciences</i>, 5(4). Uses increasing prey densities and different larval instars.</p></div>
+        <div class="reference"><span>04 · LADYBIRDS &amp; CONDITIONS</span><a href="https://doi.org/10.3390/biology14030245" target="_blank" rel="noopener">Predatory behavior of <i>Coccinella septempunctata</i> on two different aphid species via functional response at two different temperatures (2025).</a><p><i>Biology</i>, 14, 245. Evidence that predator stage, prey and temperature matter; not a calibration for this game.</p></div>
+        <div class="reference"><span>05 · LACEWINGS &amp; PEACH–POTATO APHIDS</span><a href="https://doi.org/10.4289/0013-8797.121.4.535" target="_blank" rel="noopener">Ail-Catzim and colleagues (2019). Functional response of <i>Chrysoperla carnea</i> on <i>Myzus persicae</i> nymphs.</a><p><i>Proceedings of the Entomological Society of Washington</i>, 121, 535–543.</p></div>
+        <p class="field-note">UK crop context: AHDB on <a href="https://ahdb.org.uk/knowledge-library/basic-biology-of-the-peach-potato-aphid" target="_blank" rel="noopener">peach–potato aphid</a>, <a href="https://horticulture.ahdb.org.uk/knowledge-library/management-of-the-black-bean-aphid-in-field-beans-and-sugar-beet" target="_blank" rel="noopener">black bean aphid</a> and <a href="https://ahdb.org.uk/knowledge-library/management-of-symptoms-and-viruses-spread-by-the-pea-aphid" target="_blank" rel="noopener">pea aphid</a>.</p>
+      </article>
+    </div>
+  </section>
+</main>
+<footer class="site-footer"><span>HAU Entomology · Functional Response Lab</span><span>A teaching simulation · data saved on this device</span><button class="text-button" data-view="science">Scientific sources</button></footer>
+<div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+<dialog id="confirm-dialog"><h2 id="confirm-title">Continue?</h2><p id="confirm-message"></p><div class="button-row"><button id="confirm-cancel" class="secondary">Cancel</button><button id="confirm-yes" class="primary">Continue</button></div></dialog>
+</body>
+</html>
